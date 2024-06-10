@@ -16,18 +16,14 @@ app.use(express.json());
 // Add certificate details and store IPFS hash on the blockchain
 app.post('/add-certificate', async (req, res) => {
     try {
-        const { patientAddress, name, dateOfBirth, contactInformation, vaccineType, vaccinationDate, centerIpfsHash } = req.body;
+        const { patientAddress, name, dateOfBirth, contactInformation, vaccineType, vaccinationDate, centerLocation } = req.body;
         const patientData = { name, dateOfBirth, contactInformation, vaccineType, vaccinationDate };
 
         // Upload patient data to IPFS using Pinata
         const ipfsHash = await uploadToIPFS(patientData);
 
-        // Convert IPFS hash to bytes32
-        const ipfsHashBytes32 = web3.utils.keccak256(ipfsHash);
-        const centerIpfsHashBytes32 = web3.utils.keccak256(centerIpfsHash);
-
         // Send transaction to the smart contract
-        const receipt = await contract.methods.issueCertificate(patientAddress, ipfsHashBytes32,centerIpfsHashBytes32)
+        const receipt = await contract.methods.issueCertificate(patientAddress, ipfsHash, centerLocation)
             .send({ from: account.address, gas: 3000000 });
            
         // Save certificate data to MongoDB
@@ -37,7 +33,7 @@ app.post('/add-certificate', async (req, res) => {
             tokenId: tokenId,
             patientAddress: patientAddress,
             ipfsHash: ipfsHash,
-            centerIpfsHash: centerIpfsHash, // Include center IPFS hash
+            centerLocation: centerLocation, 
             verified: false
         });
 
@@ -69,9 +65,13 @@ app.post('/add-vaccination-center', async (req, res) => {
         // Send transaction to the smart contract
         const receipt = await contract.methods.addVaccinationCenter(centerAddress, centerName, centerLocationAddress, centerCity)
             .send({ from: account.address, gas: 3000000 });
+        
+        // Save certificate data to MongoDB
+        const centerId = receipt.events.CenterAdded.returnValues.centerId.toString();
 
         // Save center data to MongoDB
         const newCenter = new Center({
+            centerId,
             centerAddress,
             centerName,
             centerLocationAddress,
@@ -94,7 +94,7 @@ app.put('/update-vaccination-center/:centerId', async (req, res) => {
         const { centerAddress, centerName, centerLocationAddress, centerCity } = req.body;
 
         // Check if the center exists in the database
-        const existingCenter = await Center.findOne({ centerAddress });
+        const existingCenter = await Center.findOne({ centerId });
         if (!existingCenter) {
             return res.status(404).send({ error: 'Center not found' });
         }
@@ -180,7 +180,7 @@ app.get('/certificate/:tokenId', async (req, res) => {
 }); 
 
 // Route to get details of a vaccination center
-app.get('/get-center-details/:centerId', authMiddleware, async (req, res) => {
+app.get('/get-center-details/:centerId', async (req, res) => {
     try {
         const { centerId } = req.params;
 

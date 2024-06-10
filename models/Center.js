@@ -2,6 +2,11 @@
 const mongoose = require('mongoose');
 
 const centerSchema = new mongoose.Schema({
+    centerId: {
+        type: Number,
+        required: true,
+        unique: true
+    },
     centerAddress: {
         type: String,
         required: true,
