@@ -19,6 +19,12 @@ app.post('/add-certificate', async (req, res) => {
         const { patientAddress, name, dateOfBirth, contactInformation, vaccineType, vaccinationDate, centerLocation } = req.body;
         const patientData = { name, dateOfBirth, contactInformation, vaccineType, vaccinationDate };
 
+        // Check if the patient already exists in the database
+        const existingCertificate = await Certificate.findOne({ patientAddress });
+        if (existingCertificate) {
+            return res.status(400).send({ error: 'Certificate already exists for this patient' });
+        }
+
         // Upload patient data to IPFS using Pinata
         const ipfsHash = await uploadToIPFS(patientData);
 
@@ -122,6 +128,15 @@ app.patch('/verify-certificate', async (req, res) => {
     try {
         const { tokenId } = req.body;
 
+        // Check if the certificate is already verified
+        const existingCertificate = await Certificate.findOne({ tokenId });
+        if (!existingCertificate) {
+            return res.status(404).send({ error: 'Certificate not found' });
+        }
+        if (existingCertificate.verified) {
+            return res.status(400).send({ error: 'Certificate is already verified' });
+        }
+
         // Send transaction to the smart contract
         const receipt = await contract.methods.verifyCertificate(tokenId)
             .send({ from: account.address, gas: 3000000 });
@@ -187,7 +202,22 @@ app.get('/get-center-details/:centerId', async (req, res) => {
         // Call the smart contract function to get center details
         const centerDetails = await contract.methods.getCenterDetails(centerId).call({ from: account.address });
 
-        res.send({ centerDetails });
+        // Extract relevant information from the response
+        const centerAddress = centerDetails[0];
+        const centerName = centerDetails[1];
+        const centerLocationAddress = centerDetails[2];
+        const centerLocation = centerDetails[3];
+
+        // Construct the response object
+        const response = {
+            centerAddress,
+            centerName,
+            centerLocationAddress,
+            centerLocation
+        };
+        
+    
+        res.send( response );
     } catch (error) {
         console.error(error);
         res.status(500).send({ error: 'Failed to get vaccination center details' });
