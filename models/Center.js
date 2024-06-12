@@ -18,7 +18,7 @@ const centerSchema = new mongoose.Schema({
     },
     centerLocationAddress: {
         type: String,
-        required: true
+        required: true,
     },
     centerCity: {
         type: String,

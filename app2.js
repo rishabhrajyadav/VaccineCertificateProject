@@ -16,18 +16,18 @@ app.use(express.json());
 // Add certificate details and store IPFS hash on the blockchain
 app.post('/add-certificate', async (req, res) => {
     try {
-        const { patientAddress, name, dateOfBirth, email, contactAddress , mobileNumber ,vaccineType, vaccinationDate, centerLocation } = req.body;
-        const patientData = { patientAddress, name, dateOfBirth, email, mobileNumber ,vaccineType, vaccinationDate };
+        const { patientAddress, name, dateOfBirth, contactInformation, vaccineType, vaccinationDate, centerLocation } = req.body;
+        const patientData = { patientAddress, name, dateOfBirth, contactInformation, vaccineType, vaccinationDate };
 
         // Check if the patient already exists in the database
         const existingCertificate = await Certificate.findOne({ patientAddress });
-        if (existingCertificate ) {
+        if (existingCertificate) {
             return res.status(400).send({ error: 'Certificate already exists for this patient' });
         }
 
-        const existingCenter = await Center.findOne({ centerLocationAddress : centerLocation });
-        if (!existingCenter) {
-            return res.status(400).send({ error: 'Center Not exists' });
+        // Check if the contactInformation already exists in the database
+        if (existingCertificate.contactInformation) {
+            return res.status(400).send({ error: 'Certificate already exists for this contact information' });
         }
 
         // Upload patient data to IPFS using Pinata
@@ -42,12 +42,9 @@ app.post('/add-certificate', async (req, res) => {
         
         const newCertificate = new Certificate({
             tokenId: tokenId,
-            name : name, 
-            dateOfBirth : dateOfBirth,
-            email : email,
-            contactAddress : contactAddress , 
-            mobileNumber : mobileNumber ,
+            contactInformation : contactInformation,
             patientAddress: patientAddress,
+            ipfsHash: ipfsHash,
             centerLocation: centerLocation, 
             verified: false
         });
@@ -181,12 +178,11 @@ app.get('/certificate/:tokenId', async (req, res) => {
 
         // Call the smart contract function to get certificate details
         const certificateDetails = await contract.methods.getCertificateDetails(tokenId).call();
-        console.log(certificateDetails)
 
         // Extract relevant information from the response
         const patientAddress = certificateDetails[0];
         const ipfsHashBytes32 = certificateDetails[1];
-        const verified = certificateDetails[3];
+        const verified = certificateDetails[2];
 
         // Construct the response object
         const response = {
